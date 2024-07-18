@@ -1,0 +1,332 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np\n",
+        "import pandas as pd\n",
+        "import tensorflow as tf\n",
+        "from sklearn.preprocessing import MinMaxScaler\n",
+        "# # !pip install tensorflow_addons\n",
+        "import tensorflow_addons as tfa"
+      ],
+      "metadata": {
+        "id": "biNKvzWhy2gJ",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "73abfd21-f82c-4bf8-ef7d-ade8875021c5"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.10/dist-packages/tensorflow_addons/utils/tfa_eol_msg.py:23: UserWarning: \n",
+            "\n",
+            "TensorFlow Addons (TFA) has ended development and introduction of new features.\n",
+            "TFA has entered a minimal maintenance and release mode until a planned end of life in May 2024.\n",
+            "Please modify downstream libraries to take dependencies from other repositories in our TensorFlow community (e.g. Keras, Keras-CV, and Keras-NLP). \n",
+            "\n",
+            "For more information see: https://github.com/tensorflow/addons/issues/2807 \n",
+            "\n",
+            "  warnings.warn(\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "model1 = tf.keras.models.load_model('LSTM_new128.h5')\n",
+        "model2 = tf.keras.models.load_model('LSTM_25(128).h5')"
+      ],
+      "metadata": {
+        "id": "YfJpc0_XDPa2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "evnd-EoEydoU"
+      },
+      "outputs": [],
+      "source": [
+        "def evaluate():\n",
+        "    # Input the csv file\n",
+        "    \"\"\"\n",
+        "    Sample evaluation function\n",
+        "    Don't modify this function\n",
+        "    \"\"\"\n",
+        "    # df = pd.read_csv('sample_input.csv')\n",
+        "    df = dft.copy()\n",
+        "\n",
+        "    # actual_close = np.loadtxt('sample_close.txt')\n",
+        "    actual_close = dfact\n",
+        "    pred_close = predict_func(df)\n",
+        "\n",
+        "    # Calculation of squared_error\n",
+        "    actual_close = np.array(actual_close)\n",
+        "    pred_close = np.array(pred_close)\n",
+        "    mean_square_error = np.mean(np.square(actual_close-pred_close))\n",
+        "\n",
+        "\n",
+        "    pred_prev = [df['Close'].iloc[-1]]\n",
+        "    pred_prev.append(pred_close[0])\n",
+        "    pred_curr = pred_close\n",
+        "\n",
+        "    actual_prev = [df['Close'].iloc[-1]]\n",
+        "    actual_prev.append(actual_close[0])\n",
+        "    actual_curr = actual_close\n",
+        "\n",
+        "    # Calculation of directional_accuracy\n",
+        "    pred_dir = np.array(pred_curr)-np.array(pred_prev)\n",
+        "    actual_dir = np.array(actual_curr)-np.array(actual_prev)\n",
+        "    dir_accuracy = np.mean((pred_dir*actual_dir)>0)*100\n",
+        "\n",
+        "    print(f'Mean Square Error: {mean_square_error:.6f}\\nDirectional Accuracy: {dir_accuracy:.1f}')\n",
+        "    return [mean_square_error, dir_accuracy]"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def predict_func(data):\n",
+        "    \"\"\"\n",
+        "    Modify this function to predict closing prices for next 2 samples.\n",
+        "    Take care of null values in the sample_input.csv file which are listed as NAN in the dataframe passed to you\n",
+        "    Args:\n",
+        "        data (pandas Dataframe): contains the 50 continuous time series values for a stock index\n",
+        "\n",
+        "    Returns:\n",
+        "        list (2 values): your prediction for closing price of next 2 samples\n",
+        "    \"\"\"\n",
+        "\n",
+        "\n",
+        "    # data['Close'].fillna(-9999, inplace=True)\n",
+        "    # na_indices = data['Close'].index[data['Close'] == -9999]\n",
+        "\n",
+        "    # for i in na_indices:\n",
+        "    #     data['Close'][i] = data['Close'][i-1]/2 + data['Close'][i+1]/2\n",
+        "\n",
+        "\n",
+        "    i=0\n",
+        "\n",
+        "    while( pd.isna(data.at[i,'Close']) ):\n",
+        "       i=i+1\n",
+        "\n",
+        "    # do backfilling till first non- null index as interpolation can't be done\n",
+        "    mask = data.index <= i\n",
+        "    data_filled = data.copy()\n",
+        "    data_filled.loc[mask] = data_filled.loc[mask].fillna(method='backfill')\n",
+        "    data=data_filled\n",
+        "\n",
+        "    data=data.interpolate()\n",
+        "\n",
+        "    df=data['Close']\n",
+        "    # df.interpolate(method=\"linear\")\n",
+        "\n",
+        "    df=np.array(df)\n",
+        "    # print(df)\n",
+        "    df=np.reshape(df,(50, 1))\n",
+        "    scaler = MinMaxScaler(feature_range=(0, 1))\n",
+        "    df = scaler.fit_transform(df)\n",
+        "    df=np.reshape(df,(1, 50, 1))\n",
+        "\n",
+        "    predicted_1=model2.predict(df)\n",
+        "    predicted_1=np.array(predicted_1)\n",
+        "\n",
+        "    df=np.reshape(df,(50, 1))\n",
+        "    df=np.append(df, predicted_1)\n",
+        "\n",
+        "    df=np.reshape(df,(1, 51, 1))\n",
+        "\n",
+        "\n",
+        "    predicted_2=model2.predict(df[:,1:,:])\n",
+        "    predicted_2=np.array(predicted_2)\n",
+        "\n",
+        "    # print(predicted_1)\n",
+        "    # print(predicted_2)\n",
+        "\n",
+        "    df=np.reshape(df,(51,1))\n",
+        "    df=np.append(df, predicted_2)\n",
+        "\n",
+        "    df=np.reshape(df,(52,1))\n",
+        "    df=scaler.inverse_transform(df)\n",
+        "\n",
+        "    # print(df)\n",
+        "\n",
+        "    return [df[-2][0], df[-1][0]]\n",
+        "    # return [0,0]"
+      ],
+      "metadata": {
+        "id": "1aopbghpywL-"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "if __name__== \"__main__\":\n",
+        "    result=evaluate()\n",
+        "    print(result[0])"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 317
+        },
+        "id": "kgAfaaUbcXwb",
+        "outputId": "b5a94ef1-409d-46f5-d2ed-88a1dfd0c9b0"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "ignored",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-5-f012b965274b>\u001b[0m in \u001b[0;36m<cell line: 1>\u001b[0;34m()\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0;32mif\u001b[0m \u001b[0m__name__\u001b[0m\u001b[0;34m==\u001b[0m \u001b[0;34m\"__main__\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 2\u001b[0;31m     \u001b[0mresult\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mevaluate\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      3\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mresult\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;36m0\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m<ipython-input-3-dcdb804ba225>\u001b[0m in \u001b[0;36mevaluate\u001b[0;34m()\u001b[0m\n\u001b[1;32m      6\u001b[0m     \"\"\"\n\u001b[1;32m      7\u001b[0m     \u001b[0mdf\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mread_csv\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'sample_input.csv'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 8\u001b[0;31m     \u001b[0mdf\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdftata\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      9\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     10\u001b[0m     \u001b[0mactual_close\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mnp\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mloadtxt\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'sample_close.txt'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'dftata' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import yfinance as yf"
+      ],
+      "metadata": {
+        "id": "YuRYY5z2jen2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df = pd.read_csv('STOCK_INDEX.csv')\n",
+        "len = 150\n",
+        "dftata=df[len-50:len]\n",
+        "dfact = df[\"Close\"][len:len+2]\n",
+        "dfact"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "8IU2xf9SZFR_",
+        "outputId": "86d7f0bc-edbc-46fb-a5cd-4cb1859af2a8"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "2570    11930.34961\n",
+              "2571    11767.75000\n",
+              "Name: Close, dtype: float64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 40
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "if __name__== \"__main__\":\n",
+        "    data = pd.read_csv('STOCK_INDEX.csv')\n",
+        "\n",
+        "    # df = yf.Ticker(\"NESTLEIND.NS\")\n",
+        "    # Valid options are 1d, 5d, 1mo, 3mo, 6mo, 1y,\n",
+        "    # 2y, 5y, 10y and ytd.\n",
+        "    # df = df.history(period=\"5y\")\n",
+        "    sum_rmse=0\n",
+        "    sum_acc=0\n",
+        "    for i in range(2400, 2600):\n",
+        "      dft=data[i-50:i]\n",
+        "      dfact=data['Close'][i:i+2]\n",
+        "      mean=np.mean(dft[\"Close\"])\n",
+        "      evaluate()\n",
+        "    #   rmse=(res[0]**0.5)/mean\n",
+        "    #   print(rmse*100)\n",
+        "    #   dir_acc=res[1]\n",
+        "    #   sum_rmse+=rmse\n",
+        "    #   sum_acc+=dir_acc\n",
+        "\n",
+        "    # length = 651\n",
+        "    # sum_rmse=sum_rmse/length\n",
+        "    # sum_acc=sum_acc/length\n",
+        "    # print(sum_rmse)\n",
+        "    # print(sum_acc)"
+      ],
+      "metadata": {
+        "id": "Qsfcg54dyzl9",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 426
+        },
+        "outputId": "e103f557-b390-4774-f397-780fd8a03bde"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "KeyError",
+          "evalue": "ignored",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mValueError\u001b[0m                                Traceback (most recent call last)",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/pandas/core/indexes/range.py\u001b[0m in \u001b[0;36mget_loc\u001b[0;34m(self, key, method, tolerance)\u001b[0m\n\u001b[1;32m    390\u001b[0m                 \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 391\u001b[0;31m                     \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_range\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mnew_key\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    392\u001b[0m                 \u001b[0;32mexcept\u001b[0m \u001b[0mValueError\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0merr\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mValueError\u001b[0m: 0 is not in range",
+            "\nThe above exception was the direct cause of the following exception:\n",
+            "\u001b[0;31mKeyError\u001b[0m                                  Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-25-f92ccdbb2431>\u001b[0m in \u001b[0;36m<cell line: 1>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     12\u001b[0m       \u001b[0mdfact\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mdata\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'Close'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mi\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0mi\u001b[0m\u001b[0;34m+\u001b[0m\u001b[0;36m2\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     13\u001b[0m       \u001b[0mmean\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mnp\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mmean\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdft\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"Close\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 14\u001b[0;31m       \u001b[0mevaluate\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     15\u001b[0m     \u001b[0;31m#   rmse=(res[0]**0.5)/mean\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     16\u001b[0m     \u001b[0;31m#   print(rmse*100)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m<ipython-input-24-201e84b5f4fb>\u001b[0m in \u001b[0;36mevaluate\u001b[0;34m()\u001b[0m\n\u001b[1;32m     10\u001b[0m     \u001b[0;31m# actual_close = np.loadtxt('sample_close.txt')\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     11\u001b[0m     \u001b[0mactual_close\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdfact\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 12\u001b[0;31m     \u001b[0mpred_close\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpredict_func\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdf\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     13\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     14\u001b[0m     \u001b[0;31m# Calculation of squared_error\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m<ipython-input-19-e3e9b8c6082a>\u001b[0m in \u001b[0;36mpredict_func\u001b[0;34m(data)\u001b[0m\n\u001b[1;32m     20\u001b[0m     \u001b[0mi\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m0\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     21\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 22\u001b[0;31m     \u001b[0;32mwhile\u001b[0m\u001b[0;34m(\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0misnull\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdata\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mat\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mi\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m'Close'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     23\u001b[0m        \u001b[0mi\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mi\u001b[0m\u001b[0;34m+\u001b[0m\u001b[0;36m1\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     24\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/pandas/core/indexing.py\u001b[0m in \u001b[0;36m__getitem__\u001b[0;34m(self, key)\u001b[0m\n\u001b[1;32m   2429\u001b[0m             \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mloc\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2430\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 2431\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0msuper\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__getitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   2432\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2433\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0m__setitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mkey\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mvalue\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/pandas/core/indexing.py\u001b[0m in \u001b[0;36m__getitem__\u001b[0;34m(self, key)\u001b[0m\n\u001b[1;32m   2380\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2381\u001b[0m         \u001b[0mkey\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_convert_key\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 2382\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_get_value\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mtakeable\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_takeable\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   2383\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2384\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0m__setitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mkey\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mvalue\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;34m->\u001b[0m \u001b[0;32mNone\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/pandas/core/frame.py\u001b[0m in \u001b[0;36m_get_value\u001b[0;34m(self, index, col, takeable)\u001b[0m\n\u001b[1;32m   3922\u001b[0m             \u001b[0;31m#  results if our categories are integers that dont match our codes\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   3923\u001b[0m             \u001b[0;31m# IntervalIndex: IntervalTree has no get_loc\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 3924\u001b[0;31m             \u001b[0mrow\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mget_loc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   3925\u001b[0m             \u001b[0;32mreturn\u001b[0m \u001b[0mseries\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_values\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mrow\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   3926\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/pandas/core/indexes/range.py\u001b[0m in \u001b[0;36mget_loc\u001b[0;34m(self, key, method, tolerance)\u001b[0m\n\u001b[1;32m    391\u001b[0m                     \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_range\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mnew_key\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    392\u001b[0m                 \u001b[0;32mexcept\u001b[0m \u001b[0mValueError\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0merr\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 393\u001b[0;31m                     \u001b[0;32mraise\u001b[0m \u001b[0mKeyError\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;32mfrom\u001b[0m \u001b[0merr\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    394\u001b[0m             \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_check_indexing_error\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    395\u001b[0m             \u001b[0;32mraise\u001b[0m \u001b[0mKeyError\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mKeyError\u001b[0m: 0"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "l0bsKbfEcWK6"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
