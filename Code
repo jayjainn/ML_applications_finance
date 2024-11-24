@@ -2,77 +2,98 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
-import tensorflow_addons as tfa
 
+# Load pre-trained LSTM models
 model1 = tf.keras.models.load_model('LSTM_new128.h5')
 model2 = tf.keras.models.load_model('LSTM_25(128).h5')
 
-def evaluate():
-    df = dft.copy()
-    actual_close = dfact
-    pred_close = predict_func(df)
-
-    actual_close = np.array(actual_close)
-    pred_close = np.array(pred_close)
-    mean_square_error = np.mean(np.square(actual_close - pred_close))
-
-    pred_prev = [df['Close'].iloc[-1]]
-    pred_prev.append(pred_close[0])
-    pred_curr = pred_close
-
-    actual_prev = [df['Close'].iloc[-1]]
-    actual_prev.append(actual_close[0])
-    actual_curr = actual_close
-
-    pred_dir = np.array(pred_curr) - np.array(pred_prev)
-    actual_dir = np.array(actual_curr) - np.array(actual_prev)
-    dir_accuracy = np.mean((pred_dir * actual_dir) > 0) * 100
-
-    print(f'Mean Square Error: {mean_square_error:.6f}\nDirectional Accuracy: {dir_accuracy:.1f}')
-    return [mean_square_error, dir_accuracy]
-
-def predict_func(data):
-    i = 0
-    while pd.isna(data.at[i, 'Close']):
-        i += 1
-
-    mask = data.index <= i
-    data_filled = data.copy()
-    data_filled.loc[mask] = data_filled.loc[mask].fillna(method='backfill')
-    data = data_filled
-
+def preprocess_data(data, scaler=None):
+    """
+    Preprocess the input data by filling missing values and scaling.
+    """
+    # Fill missing values using interpolation and backfill
     data = data.interpolate()
-    df = data['Close']
-    df = np.array(df).reshape((50, 1))
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    df = scaler.fit_transform(df).reshape((1, 50, 1))
+    data = data.fillna(method='backfill')
 
-    predicted_1 = model2.predict(df)
-    df = np.append(df.reshape((50, 1)), predicted_1).reshape((1, 51, 1))
-    predicted_2 = model2.predict(df[:, 1:, :])
-    df = np.append(df.reshape((51, 1)), predicted_2).reshape((52, 1))
-    df = scaler.inverse_transform(df)
+    # Scaling
+    if scaler is None:
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        data_scaled = scaler.fit_transform(data.values.reshape(-1, 1))
+    else:
+        data_scaled = scaler.transform(data.values.reshape(-1, 1))
+    
+    return data_scaled, scaler
 
-    return [df[-2][0], df[-1][0]]
+def predict_func(data, scaler):
+    """
+    Predict the next two stock prices using LSTM models.
+    """
+    # Ensure data is scaled properly
+    data_scaled, scaler = preprocess_data(data, scaler)
+
+    # Reshape for LSTM input
+    input_data = data_scaled[-50:].reshape(1, 50, 1)
+
+    # Predictions
+    predicted_1 = model2.predict(input_data)
+    input_data = np.append(input_data[0], predicted_1).reshape(1, 51, 1)
+    predicted_2 = model2.predict(input_data[:, 1:, :])
+    
+    # Inverse transform to original scale
+    predictions = np.concatenate([predicted_1, predicted_2]).reshape(-1, 1)
+    predictions_original_scale = scaler.inverse_transform(predictions)
+
+    return predictions_original_scale.flatten()
+
+def evaluate(dft, dfact, scaler):
+    """
+    Evaluate model predictions using Mean Squared Error and Directional Accuracy.
+    """
+    # Perform predictions
+    pred_close = predict_func(dft['Close'], scaler)
+
+    # Convert to numpy arrays for calculations
+    actual_close = np.array(dfact)
+    pred_close = np.array(pred_close)
+
+    # Mean Squared Error
+    mse = np.mean(np.square(actual_close - pred_close))
+
+    # Directional Accuracy
+    actual_diff = np.diff(np.concatenate([[dft['Close'].iloc[-1]], actual_close]))
+    pred_diff = np.diff(np.concatenate([[dft['Close'].iloc[-1]], pred_close]))
+    directional_accuracy = np.mean((actual_diff * pred_diff) > 0) * 100
+
+    print(f'Mean Square Error: {mse:.6f}')
+    print(f'Directional Accuracy: {directional_accuracy:.1f}%')
+    return mse, directional_accuracy
 
 if __name__ == "__main__":
-    result = evaluate()
-    print(result[0])
-
-import yfinance as yf
-
-df = pd.read_csv('STOCK_INDEX.csv')
-len = 150
-dftata = df[len-50:len]
-dfact = df["Close"][len:len+2]
-dfact
-
-if __name__ == "__main__":
+    # Load data
     data = pd.read_csv('STOCK_INDEX.csv')
-    sum_rmse = 0
-    sum_acc = 0
+    scaler = MinMaxScaler(feature_range=(0, 1))  # Initialize scaler
+
+    # Evaluate over a range of data
+    total_mse = 0
+    total_accuracy = 0
+    count = 0
+
     for i in range(2400, 2600):
-        dft = data[i-50:i]
-        dfact = data['Close'][i:i+2]
-        mean = np.mean(dft["Close"])
-        evaluate()
+        # Prepare the input window and actual values
+        dft = data.iloc[i-50:i].copy()
+        dfact = data['Close'].iloc[i:i+2].values
+
+        # Preprocess input data for scaling
+        _, scaler = preprocess_data(dft['Close'], scaler)
+
+        # Evaluate and accumulate metrics
+        mse, accuracy = evaluate(dft, dfact, scaler)
+        total_mse += mse
+        total_accuracy += accuracy
+        count += 1
+
+    # Print overall metrics
+    avg_mse = total_mse / count
+    avg_accuracy = total_accuracy / count
+    print(f'\nAverage MSE over range: {avg_mse:.6f}')
+    print(f'Average Directional Accuracy over range: {avg_accuracy:.1f}%')
