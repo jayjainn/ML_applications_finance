@@ -17,9 +17,11 @@ def preprocess_data(data, scaler=None):
 
     # Scaling
     if scaler is None:
+        # Initialize the scaler and fit it on the data
         scaler = MinMaxScaler(feature_range=(0, 1))
         data_scaled = scaler.fit_transform(data.values.reshape(-1, 1))
     else:
+        # If scaler is already passed, just transform the data
         data_scaled = scaler.transform(data.values.reshape(-1, 1))
     
     return data_scaled, scaler
@@ -71,7 +73,7 @@ def evaluate(dft, dfact, scaler):
 if __name__ == "__main__":
     # Load data
     data = pd.read_csv('STOCK_INDEX.csv')
-    scaler = MinMaxScaler(feature_range=(0, 1))  # Initialize scaler
+    scaler = None  # Initialize scaler as None
 
     # Evaluate over a range of data
     total_mse = 0
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         dft = data.iloc[i-50:i].copy()
         dfact = data['Close'].iloc[i:i+2].values
 
-        # Preprocess input data for scaling
+        # Preprocess input data for scaling (fit scaler on training data)
         _, scaler = preprocess_data(dft['Close'], scaler)
 
         # Evaluate and accumulate metrics
